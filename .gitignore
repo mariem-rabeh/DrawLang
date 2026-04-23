@@ -1,0 +1,45 @@
+# ═══════════════════════════════════════════════
+# DrawLang — .gitignore
+# ═══════════════════════════════════════════════
+
+# ── Fichiers générés par Flex ──────────────────
+lex.yy.c
+
+# ── Fichiers générés par Bison ─────────────────
+draw.tab.c
+draw.tab.h
+
+# ── Binaires compilés ──────────────────────────
+drawlang
+drawlang.exe
+
+# ── Fichiers SVG de sortie ─────────────────────
+*.svg
+output.svg
+
+# ── Fichiers source temporaires DrawLang ───────
+*.draw
+
+# ── Fichiers objets et compilation ─────────────
+*.o
+*.a
+*.out
+a.out
+
+# ── Node.js (server.js) ────────────────────────
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# ── Éditeurs et IDE ────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Fichiers temporaires système ───────────────
+*.tmp
+*.log

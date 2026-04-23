@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DrawLang IDE</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#f5f4f0; --surface:#ffffff; --border:#dddbd5;
+  --text:#1a1916; --muted:#8a8880; --accent:#2d5be3; --green:#1a7a4a; --red:#c0392b;
+  --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+}
+body { font-family:var(--sans); background:var(--bg); color:var(--text); height:100vh; display:grid; grid-template-rows:48px 1fr 32px; overflow:hidden; }
+
+/* HEADER */
+header { display:flex; align-items:center; justify-content:space-between; padding:0 20px; background:var(--surface); border-bottom:1px solid var(--border); gap:12px; }
+.logo { font-family:var(--mono); font-size:.88rem; font-weight:600; white-space:nowrap; }
+.logo em { color:var(--accent); font-style:normal; }
+.logo small { font-size:.62rem; color:var(--muted); margin-left:8px; font-weight:400; }
+.hbtns { display:flex; gap:8px; align-items:center; flex-shrink:0; }
+.btn { font-family:var(--sans); font-size:.75rem; font-weight:600; padding:5px 14px; border-radius:4px; border:1px solid var(--border); background:var(--surface); color:var(--text); cursor:pointer; transition:.15s; }
+.btn:hover { background:var(--bg); }
+.btn-run  { background:var(--accent); color:#fff; border-color:var(--accent); }
+.btn-run:hover { background:#1e48c7; }
+.btn-run:disabled { opacity:.5; cursor:not-allowed; pointer-events:none; }
+
+/* Badge état du backend */
+.badge { font-family:var(--mono); font-size:.6rem; padding:3px 9px; border-radius:10px; border:1px solid; cursor:default; white-space:nowrap; }
+.badge.checking { color:var(--muted);  border-color:var(--border);   background:var(--bg); }
+.badge.ok       { color:var(--green);  border-color:#1a7a4a50; background:#1a7a4a0d; }
+.badge.warn     { color:#b8660a;       border-color:#b8660a50; background:#b8660a0d; }
+.badge.error    { color:var(--red);    border-color:#c0392b50; background:#c0392b0d; cursor:pointer; }
+
+/* Bandeau d'alerte binaire manquant */
+#alert-bar { display:none; background:#fff3cd; border-bottom:1px solid #ffc107; padding:7px 20px; font-size:.72rem; font-family:var(--mono); color:#856404; line-height:1.6; }
+#alert-bar code { background:#ffeeba; padding:1px 5px; border-radius:3px; }
+
+/* MAIN */
+.main { display:grid; grid-template-columns:1fr 1fr; overflow:hidden; }
+
+/* EDITOR SIDE */
+.editor-side { display:grid; grid-template-rows:1fr 200px; border-right:1px solid var(--border); overflow:hidden; }
+.pane-label { padding:5px 14px; font-size:.65rem; font-weight:600; text-transform:uppercase; letter-spacing:1.2px; color:var(--muted); background:var(--bg); border-bottom:1px solid var(--border); flex-shrink:0; display:flex; align-items:center; justify-content:space-between; }
+.pane-label button { font-size:.6rem; color:var(--muted); background:none; border:none; cursor:pointer; font-family:var(--mono); }
+.pane-label button:hover { color:var(--red); }
+.editor-wrap { display:flex; overflow:hidden; background:var(--surface); flex:1; }
+.line-nums { padding:14px 10px 14px 14px; font-family:var(--mono); font-size:.76rem; line-height:1.65; color:var(--border); text-align:right; user-select:none; min-width:44px; overflow:hidden; border-right:1px solid var(--border); background:var(--bg); flex-shrink:0; }
+#editor { flex:1; padding:14px; font-family:var(--mono); font-size:.76rem; line-height:1.65; border:none; outline:none; resize:none; background:var(--surface); color:var(--text); tab-size:4; caret-color:var(--accent); overflow-y:auto; }
+
+/* CONSOLE */
+.console-pane { border-top:1px solid var(--border); overflow:hidden; display:flex; flex-direction:column; }
+#console { flex:1; overflow-y:auto; padding:10px 14px; font-family:var(--mono); font-size:.71rem; line-height:1.75; white-space:pre-wrap; word-break:break-word; background:var(--surface); }
+.log-dim     { color:#ccc; }
+.log-section { color:var(--muted); font-size:.63rem; }
+.log-ok      { color:var(--green); }
+.log-warn    { color:#b8660a; }
+.log-error   { color:var(--red); font-weight:600; }
+.log-info    { color:var(--accent); }
+.log-output  { color:#7b3fa0; font-weight:600; }
+.log-svg     { color:var(--muted); }
+
+/* PREVIEW */
+.preview-side { display:flex; flex-direction:column; overflow:hidden; }
+.preview-header { padding:5px 14px; font-size:.65rem; font-weight:600; text-transform:uppercase; letter-spacing:1.2px; color:#ffffff55; background:#070600; border-bottom:1px solid #ffffff15; flex-shrink:0; display:flex; justify-content:space-between; align-items:center; }
+.preview-area { flex:1; display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; background:#f5f4f0; }
+#svg-container { width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+#svg-container svg { max-width:100%; max-height:100%; }
+.empty-state { position:absolute; text-align:center; color:#ffffff20; font-family:var(--mono); font-size:.73rem; line-height:2.4; pointer-events:none; }
+.empty-icon { font-size:2rem; display:block; margin-bottom:4px; }
+
+/* Spinner pendant la compilation */
+.loading-overlay { position:absolute; inset:0; background:#1a1a2ecc; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px; opacity:0; pointer-events:none; transition:opacity .15s; }
+.loading-overlay.on { opacity:1; pointer-events:all; }
+.spinner { width:28px; height:28px; border:3px solid #ffffff20; border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.loading-txt { font-family:var(--mono); font-size:.7rem; color:#ffffff55; }
+
+/* EXAMPLES BAR */
+.examples-bar { padding:7px 14px; display:flex; gap:6px; align-items:center; border-top:1px solid #ffffff15; background:#0e0e1a; flex-shrink:0; overflow-x:auto; }
+.ex-label { font-size:.6rem; font-weight:600; text-transform:uppercase; letter-spacing:1px; color:#ffffff30; margin-right:4px; white-space:nowrap; }
+.btn-ex { font-family:var(--mono); font-size:.67rem; padding:3px 10px; border-radius:3px; border:1px solid #ffffff20; background:#ffffff0e; color:#ffffffa0; cursor:pointer; transition:.15s; white-space:nowrap; }
+.btn-ex:hover { background:#ffffff22; color:#fff; }
+
+/* Bouton télécharger SVG */
+.btn-dl { font-family:var(--mono); font-size:.6rem; padding:2px 8px; border-radius:3px; border:1px solid #ffffff25; background:#ffffff12; color:#ffffff90; cursor:pointer; text-decoration:none; display:inline-block; transition:.15s; }
+.btn-dl:hover { background:#ffffff28; color:#fff; }
+
+/* STATUS BAR */
+.status-bar { display:flex; align-items:center; gap:20px; padding:0 16px; font-family:var(--mono); font-size:.63rem; color:var(--muted); background:var(--surface); border-top:1px solid var(--border); overflow:hidden; }
+.dot { width:6px; height:6px; border-radius:50%; background:var(--green); display:inline-block; margin-right:5px; flex-shrink:0; }
+.dot.error   { background:var(--red); }
+.dot.running { background:var(--accent); animation:blink .8s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* REF PANEL */
+.ref-panel { position:absolute; top:48px; right:0; bottom:32px; width:230px; background:var(--surface); border-left:1px solid var(--border); overflow-y:auto; padding:14px; z-index:20; transform:translateX(100%); transition:transform .2s; }
+.ref-panel.open { transform:translateX(0); }
+.ref-section { margin-bottom:16px; }
+.ref-title { font-size:.6rem; font-weight:600; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin-bottom:5px; padding-bottom:3px; border-bottom:1px solid var(--border); }
+.ref-item { font-family:var(--mono); font-size:.7rem; padding:3px 7px; border-radius:3px; cursor:pointer; color:var(--text); margin-bottom:1px; }
+.ref-item:hover { background:var(--bg); color:var(--accent); }
+.ref-item small { color:var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- Bandeau d'alerte si binaire introuvable -->
+<div id="alert-bar"></div>
+
+<header>
+  <div class="logo">Draw<em>Lang</em> IDE <small>— compilateur C (Flex/Bison)</small></div>
+  <div class="hbtns">
+    <span class="badge checking" id="badge" title="Cliquez pour retenter">⏳ Connexion…</span>
+    <button class="btn" onclick="toggleRef()">Référence</button>
+    <button class="btn" onclick="clearAll()">Effacer</button>
+    <button class="btn btn-run" id="btn-run" onclick="runCode()">▶ Exécuter</button>
+  </div>
+</header>
+
+<div class="main">
+  <!-- ── ÉDITEUR ── -->
+  <div class="editor-side">
+    <div style="display:flex;flex-direction:column;overflow:hidden;flex:1;">
+      <div class="pane-label">Éditeur <small style="font-weight:400;font-size:.6rem;color:var(--muted)">Ctrl+Entrée pour exécuter</small></div>
+      <div class="editor-wrap">
+        <div class="line-nums" id="line-nums">1</div>
+        <textarea id="editor" spellcheck="false" autocorrect="off"
+          placeholder="# Exemple&#10;couleur(&quot;#00FFCC&quot;);&#10;epaisseur(2);&#10;repeter 4 {&#10;    avancer(100);&#10;    tourner(90);&#10;}"
+          oninput="syncLines()" onkeydown="handleKey(event)" onscroll="syncScroll()"></textarea>
+      </div>
+    </div>
+    <div class="console-pane">
+      <div class="pane-label">Console <button onclick="clearConsole()">effacer</button></div>
+      <div id="console"><span class="log-dim">── Prêt — backend DrawLang C ──</span></div>
+    </div>
+  </div>
+
+  <!-- ── APERÇU ── -->
+  <div class="preview-side">
+    <div class="preview-header">
+      <span>Aperçu SVG</span>
+      <span id="preview-info"></span>
+    </div>
+    <div class="preview-area">
+      <div class="empty-state" id="empty">
+        <span class="empty-icon">✏️</span>
+        Exécutez votre code<br>pour voir le dessin
+      </div>
+      <div id="svg-container"></div>
+      <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+        <div class="loading-txt">Compilation…</div>
+      </div>
+    </div>
+    <div class="examples-bar">
+      <span class="ex-label">Exemples</span>
+      <button class="btn-ex" onclick="loadEx('carre')">Carré</button>
+      <button class="btn-ex" onclick="loadEx('etoile')">Étoile</button>
+      <button class="btn-ex" onclick="loadEx('spirale')">Spirale</button>
+      <button class="btn-ex" onclick="loadEx('tableau')">Tableau</button>
+      <button class="btn-ex" onclick="loadEx('fonction')">Fonction</button>
+      <button class="btn-ex" onclick="loadEx('flocon')">Flocon</button>
+    </div>
+  </div>
+</div>
+
+<div class="status-bar">
+  <span><span class="dot" id="dot"></span><span id="status-txt">Prêt</span></span>
+  <span id="cursor-info">Ln 1, Col 1</span>
+  <span id="stats"></span>
+</div>
+
+<!-- PANNEAU DE RÉFÉRENCE -->
+<div class="ref-panel" id="ref-panel">
+  <div class="ref-section">
+    <div class="ref-title">Tortue</div>
+    <div class="ref-item" onclick="ins('avancer(100);')">avancer<small>(dist)</small></div>
+    <div class="ref-item" onclick="ins('reculer(50);')">reculer<small>(dist)</small></div>
+    <div class="ref-item" onclick="ins('tourner(90);')">tourner<small>(angle)</small></div>
+    <div class="ref-item" onclick="ins('orientation(0);')">orientation<small>(deg)</small></div>
+    <div class="ref-item" onclick="ins('stylo_haut();')">stylo_haut<small>()</small></div>
+    <div class="ref-item" onclick="ins('stylo_bas();')">stylo_bas<small>()</small></div>
+  </div>
+  <div class="ref-section">
+    <div class="ref-title">Style</div>
+    <div class="ref-item" onclick="ins('couleur(\"#FF0000\");')">couleur<small>("hex")</small></div>
+    <div class="ref-item" onclick="ins('epaisseur(3);')">epaisseur<small>(px)</small></div>
+  </div>
+  <div class="ref-section">
+    <div class="ref-title">Contrôle</div>
+    <div class="ref-item" onclick="ins('repeter 4 {\n    \n}')">repeter <small>N { }</small></div>
+    <div class="ref-item" onclick="ins('tantque x > 0 {\n    \n}')">tantque <small>cond { }</small></div>
+    <div class="ref-item" onclick="ins('si x > 0 {\n    \n}')">si <small>cond { }</small></div>
+    <div class="ref-item" onclick="ins('si x > 0 {\n    \n} sinon {\n    \n}')">si … sinon</div>
+  </div>
+  <div class="ref-section">
+    <div class="ref-title">Variables & Tableaux</div>
+    <div class="ref-item" onclick="ins('x = 10;')">x <small>= valeur</small></div>
+    <div class="ref-item" onclick="ins('afficher(x);')">afficher<small>(expr)</small></div>
+    <div class="ref-item" onclick="ins('afficher(\"texte\");')">afficher<small>("str")</small></div>
+    <div class="ref-item" onclick="ins('tab t[5];')">tab <small>nom[taille]</small></div>
+    <div class="ref-item" onclick="ins('t[0] = 42;')">t[i] <small>= valeur</small></div>
+  </div>
+  <div class="ref-section">
+    <div class="ref-title">Fonctions</div>
+    <div class="ref-item" onclick="ins('fonction f(x) {\n    retourner x;\n}')">fonction <small>nom(params)</small></div>
+    <div class="ref-item" onclick="ins('retourner x;')">retourner</div>
+  </div>
+  <div class="ref-section">
+    <div class="ref-title">Constantes</div>
+    <div class="ref-item">PI <small>= 3.14159…</small></div>
+    <div class="ref-item">VRAI <small>= 1</small></div>
+    <div class="ref-item">FAUX <small>= 0</small></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════
+const BACKEND = 'http://localhost:3000';
+
+let currentSvg = null;
+
+// ══════════════════════════════════════════
+// VÉRIFICATION DU BACKEND
+// ══════════════════════════════════════════
+async function checkBackend() {
+  const badge = document.getElementById('badge');
+  badge.textContent = '⏳ Connexion…';
+  badge.className = 'badge checking';
+  badge.onclick = null;
+
+  try {
+    const r = await fetch(BACKEND + '/ping', { signal: AbortSignal.timeout(3000) });
+    const d = await r.json();
+
+    if (d.binary) {
+      // Tout va bien
+      badge.textContent = '✓ Backend C connecté';
+      badge.className = 'badge ok';
+      hideAlert();
+    } else {
+      // Serveur OK mais binaire manquant
+      const isWin = d.platform === 'win32';
+      badge.textContent = '⚠ Binaire manquant';
+      badge.className = 'badge warn';
+      showAlert(isWin
+        ? `Le binaire <code>drawlang.exe</code> est introuvable dans le dossier du serveur. Compilez-le :<br>` +
+          `<code>flex draw.l &amp;&amp; bison -d draw.y &amp;&amp; gcc -o drawlang.exe draw.tab.c ast.c svg.c -lm</code>`
+        : `Le binaire <code>drawlang</code> est introuvable. Compilez-le :<br>` +
+          `<code>flex draw.l &amp;&amp; bison -d draw.y &amp;&amp; gcc -o drawlang draw.tab.c ast.c svg.c -lm -lfl</code>`
+      );
+    }
+  } catch {
+    badge.textContent = '✗ Backend hors ligne — cliquez pour retenter';
+    badge.className = 'badge error';
+    badge.onclick = checkBackend;
+    showAlert(
+      `Le serveur Node.js n'est pas démarré. Dans le dossier du projet :<br>` +
+      `<code>node server.js</code> &nbsp;→ puis rafraîchissez ou cliquez sur le badge.`
+    );
+    addLog('error', '[BACKEND] Impossible de joindre http://localhost:3000');
+    addLog('warn',  'Lancez : node server.js  dans le dossier du projet');
+  }
+}
+
+function showAlert(html) {
+  const el = document.getElementById('alert-bar');
+  el.innerHTML = '⚠️ &nbsp;' + html;
+  el.style.display = 'block';
+}
+function hideAlert() {
+  document.getElementById('alert-bar').style.display = 'none';
+}
+
+// ══════════════════════════════════════════
+// EXÉCUTION
+// ══════════════════════════════════════════
+async function runCode() {
+  const code = document.getElementById('editor').value.trim();
+  if (!code) return;
+
+  setDot('running', 'Compilation…');
+  document.getElementById('btn-run').disabled = true;
+  document.getElementById('loading').classList.add('on');
+  clearConsole();
+  addLog('dim', '── Compilation DrawLang (Flex/Bison + GCC) ──');
+
+  try {
+    const resp = await fetch(BACKEND + '/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+      signal: AbortSignal.timeout(15000)
+    });
+
+    if (!resp.ok) throw new Error(`Erreur HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    // ── Afficher les logs du compilateur C ──
+    if (data.logs) {
+      addLog('section', '── Sortie compilateur ──');
+      data.logs.split('\n').forEach(line => {
+        const l = line.trim();
+        if (!l) return;
+        if      (l.match(/^\[ERREUR\]|^\[SYNTAXE\]|^Erreur/i)) addLog('error',  l);
+        else if (l.match(/^\[AVERT\]/))                         addLog('warn',   l);
+        else if (l.match(/^\[OK\]/))                            addLog('ok',     l);
+        else if (l.match(/^\[INFO\]/))                          addLog('info',   l);
+        else if (l.match(/^\[SVG\]/))                           addLog('svg',    l);
+        else if (l.match(/^►/))                                 addLog('output', l);
+        else if (l.match(/^===/))                               addLog('section',l);
+        else                                                     addLog('dim',    l);
+      });
+    }
+
+    // ── Afficher le SVG ──
+    const cont  = document.getElementById('svg-container');
+    const empty = document.getElementById('empty');
+
+    if (data.svg) {
+      cont.innerHTML = data.svg;
+      empty.style.display = 'none';
+      currentSvg = data.svg;
+
+      const lineCount = (data.svg.match(/<line /g) || []).length;
+      document.getElementById('preview-info').innerHTML =
+        `${lineCount} trait${lineCount > 1 ? 's' : ''} &nbsp;<a class="btn-dl" href="#" onclick="downloadSVG(event)">⬇ SVG</a>`;
+      document.getElementById('stats').textContent = `traits:${lineCount}`;
+      addLog('ok', `[OK] ${lineCount} trait(s) tracé(s)`);
+    } else {
+      cont.innerHTML = '';
+      empty.style.display = 'block';
+      currentSvg = null;
+      document.getElementById('preview-info').textContent = '';
+      document.getElementById('stats').textContent = '';
+    }
+
+    setDot(data.ok ? 'ok' : 'error', data.ok ? 'Compilation réussie' : 'Erreur de compilation');
+    setTimeout(() => setDot('ok', 'Prêt'), 4000);
+
+  } catch (e) {
+    addLog('error', '[RÉSEAU] ' + e.message);
+    if (e.name === 'TimeoutError') addLog('warn', 'Délai dépassé — programme trop long ?');
+    else addLog('warn', 'Vérifiez que node server.js est lancé.');
+    setDot('error', 'Erreur');
+    setTimeout(() => setDot('ok', 'Prêt'), 4000);
+  } finally {
+    document.getElementById('btn-run').disabled = false;
+    document.getElementById('loading').classList.remove('on');
+  }
+}
+
+function downloadSVG(e) {
+  e.preventDefault();
+  if (!currentSvg) return;
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([currentSvg], { type: 'image/svg+xml' })),
+    download: 'drawlang.svg'
+  });
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ══════════════════════════════════════════
+// CONSOLE
+// ══════════════════════════════════════════
+function addLog(type, msg) {
+  const el = document.getElementById('console');
+  const d = document.createElement('div');
+  d.className = 'log-' + type;
+  d.textContent = msg;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+}
+function clearConsole() {
+  document.getElementById('console').innerHTML = '';
+}
+
+// ══════════════════════════════════════════
+// UI
+// ══════════════════════════════════════════
+function setDot(state, txt) {
+  document.getElementById('status-txt').textContent = txt;
+  document.getElementById('dot').className =
+    'dot' + (state === 'error' ? ' error' : state === 'running' ? ' running' : '');
+}
+
+function clearAll() {
+  document.getElementById('editor').value = '';
+  document.getElementById('svg-container').innerHTML = '';
+  document.getElementById('empty').style.display = 'block';
+  document.getElementById('preview-info').textContent = '';
+  document.getElementById('stats').textContent = '';
+  currentSvg = null;
+  clearConsole();
+  addLog('dim', '── Effacé ──');
+  syncLines();
+  setDot('ok', 'Prêt');
+}
+
+function toggleRef() { document.getElementById('ref-panel').classList.toggle('open'); }
+
+function ins(code) {
+  const el = document.getElementById('editor'), s = el.selectionStart;
+  el.value = el.value.slice(0, s) + code + el.value.slice(el.selectionEnd);
+  el.selectionStart = el.selectionEnd = s + code.length;
+  el.focus(); syncLines();
+}
+
+function syncLines() {
+  const n = (document.getElementById('editor').value.match(/\n/g) || []).length + 1;
+  document.getElementById('line-nums').innerHTML =
+    Array.from({ length: n }, (_, i) => i + 1).join('<br>');
+}
+
+function syncScroll() {
+  document.getElementById('line-nums').scrollTop =
+    document.getElementById('editor').scrollTop;
+}
+
+function handleKey(e) {
+  // Tab → 4 espaces
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const el = e.target, s = el.selectionStart;
+    el.value = el.value.slice(0, s) + '    ' + el.value.slice(el.selectionEnd);
+    el.selectionStart = el.selectionEnd = s + 4;
+    syncLines();
+    return;
+  }
+  // Ctrl/Cmd + Entrée → exécuter
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    runCode();
+  }
+}
+
+document.getElementById('editor').addEventListener('keyup', e => {
+  const el = e.target, txt = el.value.slice(0, el.selectionStart);
+  const ln = txt.split('\n').length;
+  const col = txt.split('\n').pop().length + 1;
+  document.getElementById('cursor-info').textContent = `Ln ${ln}, Col ${col}`;
+});
+
+// ══════════════════════════════════════════
+// EXEMPLES
+// ══════════════════════════════════════════
+const EXAMPLES = {
+carre:
+`couleur("#3d7eff");
+epaisseur(3);
+repeter 4 {
+    avancer(120);
+    tourner(90);
+}`,
+
+etoile:
+`couleur("#FFD700");
+epaisseur(2);
+repeter 5 {
+    avancer(150);
+    tourner(144);
+}`,
+
+spirale:
+`couleur("#ff3cac");
+epaisseur(2);
+i = 1;
+tantque i < 60 {
+    avancer(i * 2.5);
+    tourner(91);
+    i = i + 1;
+}`,
+
+tableau:
+`couleur("#00FFCC");
+epaisseur(3);
+
+tab distances[5];
+distances[0] = 50;
+distances[1] = 80;
+distances[2] = 110;
+distances[3] = 80;
+distances[4] = 50;
+
+tab angles[5];
+angles[0] = 72;
+angles[1] = 72;
+angles[2] = 72;
+angles[3] = 72;
+angles[4] = 72;
+
+i = 0;
+tantque i < 5 {
+    avancer(distances[i]);
+    tourner(angles[i]);
+    i = i + 1;
+}
+afficher("Terminé !");`,
+
+fonction:
+`fonction carre(taille) {
+    repeter 4 {
+        avancer(taille);
+        tourner(90);
+    }
+}
+
+couleur("#7b61ff");
+epaisseur(2);
+i = 0;
+tantque i < 5 {
+    carre(30 + i * 20);
+    tourner(15);
+    i = i + 1;
+}`,
+
+flocon:
+`fonction branche(longueur) {
+    si longueur > 5 {
+        avancer(longueur);
+        tourner(60);
+        branche(longueur - 15);
+        tourner(-120);
+        branche(longueur - 15);
+        tourner(60);
+        reculer(longueur);
+    }
+}
+
+couleur("#88ccff");
+epaisseur(1);
+orientation(-90);
+i = 0;
+tantque i < 6 {
+    branche(80);
+    tourner(60);
+    i = i + 1;
+}`
+};
+
+function loadEx(name) {
+  document.getElementById('editor').value = EXAMPLES[name] || '';
+  syncLines();
+  runCode();
+}
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+syncLines();
+checkBackend();
+</script>
+</body>
+</html>
